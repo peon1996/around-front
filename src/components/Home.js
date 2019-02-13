@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, Button, Spin} from 'antd';
-import { GEO_OPTIONS, POS_KEY } from "../constants";
+import { GEO_OPTIONS, POS_KEY, API_ROOT, AUTH_HEADER, TOKEN_KEY } from "../constants";
 
 const TabPane = Tabs.TabPane;
 
@@ -8,6 +8,8 @@ export class Home extends React.Component {
     state = {
         isLoadingGeoLocation: false,
         error: '',
+        isLoadingPosts: false,
+        posts: [],
     }
 
     componentDidMount() {
@@ -24,15 +26,16 @@ export class Home extends React.Component {
     }
 
     onSuccessLoadGeoLocation = (position) => {
-        const{ longtitude, latitude } = position.coords;
+        const{ longitude, latitude } = position.coords;
         localStorage.setItem(POS_KEY, JSON.stringify({
             lat: latitude,
-            lon: longtitude,
+            lon: longitude,
         }))
         this.setState({
             isLoadingGeoLocation: false,
             error: '',
         })
+        this.loadNearbyPosts();
     }
 
     onFailedLoadGeoLocation = (err) => {
@@ -43,14 +46,41 @@ export class Home extends React.Component {
     }
 
     getImagePosts = () => {
-        const { error, isLoadingGeoLocation } = this.state;
+        const { error, isLoadingGeoLocation, posts, isLoadingPosts } = this.state;
         if(error) {
             return <div>{error}</div>;
         } else if (isLoadingGeoLocation) {
             return <Spin tip="Loading geo location..."/>;
+        } else if (posts && posts.length > 0) {
+            return <div>{JSON.stringify(posts)}</div>
+        } else if (isLoadingPosts) {
+            return <Spin tip="Loading nearby posts..."/>
         } else {
-            return <div>Nothing to show.</div>;
+            return <div>No nearby posts.</div>;
         }
+    }
+
+    loadNearbyPosts = () => {
+        const { lat, lon } = JSON.parse(localStorage.getItem(POS_KEY));
+        const token = localStorage.getItem(TOKEN_KEY);
+        this.setState({isLoadingPost: true, error: ''});
+        fetch(`${API_ROOT}/search?lat=${lat}&lon=${lon}&range=20000`, {
+            method: 'GET',
+            headers: {
+                Authorization: `${AUTH_HEADER} ${token}` ,
+            }
+        }).then((response) => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Failed to load posts.');
+        }).then((data) => {
+            console.log(data);
+            this.setState({ isLoadingPosts: false, posts: data ? data : [] });
+        }).catch((e) => {
+            console.log(e.message);
+            this.setState({ isLoadingPosts: false, error: e.message });
+        });
     }
 
 
